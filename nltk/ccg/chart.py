@@ -31,6 +31,7 @@ python chart.py
 """
 from __future__ import print_function, division, unicode_literals
 
+from math import log
 import itertools
 
 from six import string_types
@@ -231,8 +232,14 @@ class CCGChartParser(ParserI):
                                 for newedge in rule.apply(chart,lex,left,right):
                                     edges_added_by_rule += 1
 
-        # Output the resulting parses
-        return chart.parses(lex.start())
+        # Sort by weights derived from lexicon.
+        def score_parse(parse):
+            return sum(log(token.weight()) for _, token in parse.pos())
+
+        parses = chart.parses(lex.start())
+        ret = sorted(parses, key=score_parse)
+
+        return ret
 
 class CCGChart(Chart):
     def __init__(self, tokens):
@@ -377,7 +384,8 @@ lex = fromstring('''
     will => Modal # Categories can be either explicit, or families.
     might => Modal
 
-    cook => TV
+    cook => TV <0.9>
+    cook => N <0.1>
     eat => TV
 
     mushrooms => N

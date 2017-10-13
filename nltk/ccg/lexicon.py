@@ -37,7 +37,7 @@ APP_RE = re.compile(r'''([\\/])([.,]?)([.,]?)(.*)''')
 LEX_RE = re.compile(r'''([\S_]+)\s*(::|[-=]+>)\s*(.+)''', re.UNICODE)
 
 # Parses the right hand side that contains category and maybe semantic predicate
-RHS_RE = re.compile(r'''([^{}]*[^ {}])\s*(\{[^}]+\})?''', re.UNICODE)
+RHS_RE = re.compile(r'''([^{}<>]*[^ {}<>])\s*(\{[^}]+\})?\s*(<-?\d*(?:\.\d+)?>)?''', re.UNICODE)
 
 # Parses the semantic predicate
 SEMANTICS_RE = re.compile(r'''\{([^}]+)\}''', re.UNICODE)
@@ -54,29 +54,34 @@ class Token(object):
 
     * `token` (string)
     * `categ` (string)
+    * `weight` (float)
     * `semantics` (Expression)
     """
-    def __init__(self, token, categ, semantics=None):
+    def __init__(self, token, categ, weight, semantics=None):
         self._token = token
         self._categ = categ
+        self._weight = weight
         self._semantics = semantics
-        
+
     def categ(self):
         return self._categ
-    
+
+    def weight(self):
+        return self._weight
+
     def semantics(self):
         return self._semantics
-        
+
     def __str__(self):
         semantics_str = ""
         if self._semantics is not None:
             semantics_str = " {" + str(self._semantics) + "}"
         return "" + str(self._categ) + semantics_str
-    
+
     def __cmp__(self, other):
         if not isinstance(other, Token): return -1
-        return cmp((self._categ,self._semantics),
-                    other.categ(),other.semantics())
+        return cmp((self._categ,self._weight,self._semantics),
+                    other.categ(),other.weight(),other.semantics())
 
 @python_2_unicode_compatible
 class CCGLexicon(object):
@@ -260,13 +265,14 @@ def fromstring(lex_str, include_semantics=False):
         else:
             # Either a family definition, or a word definition
             (ident, sep, rhs) = LEX_RE.match(line).groups()
-            (catstr, semantics_str) = RHS_RE.match(rhs).groups()
+            (catstr, semantics_str, weight) = RHS_RE.match(rhs).groups()
             (cat, var) = augParseCategory(catstr, primitives, families)
 
             if sep == '::':
                 # Family definition
                 # ie, Det :: NP/N
                 families[ident] = (cat, var)
+                # TODO weight?
             else:
                 semantics = None
                 if include_semantics is True:
@@ -274,9 +280,15 @@ def fromstring(lex_str, include_semantics=False):
                         raise AssertionError(line + " must contain semantics because include_semantics is set to True")
                     else:
                         semantics = Expression.fromstring(SEMANTICS_RE.match(semantics_str).groups()[0])
+
+                if weight is not None:
+                    weight = float(weight[1:-1])
+                else:
+                    weight = 1.0
+
                 # Word definition
                 # ie, which => (N\N)/(S/NP)
-                entries[ident].append(Token(ident, cat, semantics))
+                entries[ident].append(Token(ident, cat, weight, semantics))
     return CCGLexicon(primitives[0], primitives, families, entries)
 
 
@@ -312,8 +324,8 @@ openccg_tinytiny = fromstring("""
     policeman => N[sg]
     policemen => N[pl]
 
-    boy => N[sg]
-    boys => N[pl]
+    boy => N[sg] <0.5>
+    boys => N[pl] <0.1>
 
     sleep => IntransVsg
     sleep => IntransVpl
