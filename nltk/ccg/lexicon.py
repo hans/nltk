@@ -93,6 +93,8 @@ class CCGLexicon(object):
         self._families = families
         self._entries = entries
 
+    def printprueba(self,str):
+        print(str+'venga')
 
     def categories(self, word):
         """

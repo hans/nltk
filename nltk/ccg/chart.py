@@ -48,6 +48,8 @@ from nltk.compat import python_2_unicode_compatible
 from nltk.ccg.combinator import *
 from nltk.ccg.logic import *
 from nltk.sem.logic import *
+import pdb
+import copy
 
 # Based on the EdgeI class from NLTK.
 # A number of the properties of the EdgeI interface don't
@@ -207,6 +209,7 @@ class CCGChartParser(ParserI):
         lex = self._lexicon
 
         # Initialize leaf edges.
+        pdb.set_trace()
         for index in range(chart.num_leaves()):
             for token in lex.categories(chart.leaf(index)):
                 new_edge = CCGLeafEdge(index, token, chart.leaf(index))
@@ -228,11 +231,62 @@ class CCGChartParser(ParserI):
                             # Generate all possible combinations of the two edges
                             for rule in self._rules:
                                 edges_added_by_rule = 0
-                                for newedge in rule.apply(chart,lex,left,right):
+                                for newedge in rule.apply(chart,lex_aux,left,right):
                                     edges_added_by_rule += 1
 
         # Output the resulting parses
         return chart.parses(lex.start())
+
+    def genlex(self,sentence):
+        tokens = list(sentence.split())
+        chart = CCGChart(list(tokens))
+        lex = self._lexicon
+        #lex_aux = copy.deepcopy(lex) 
+        lex_aux=lex
+        # Initialize leaf edges.
+        #pdb.set_trace()
+        for index in range(chart.num_leaves()):
+            if lex.categories(chart.leaf(index))==[]:
+                for ident in (lex._entries):
+                    for case in lex._entries[ident]:
+                        token = Token(chart.leaf(index),case.categ(),case.semantics())
+                        if lex_aux._entries[chart.leaf(index)]== []:
+                            lex_aux._entries[chart.leaf(index)].append(token)
+                        else:
+                            flag = 0     
+                            for other in lex_aux._entries[chart.leaf(index)]:
+                                if other.categ()== token.categ() and other.semantics()==token.semantics():
+                                    flag = 1 
+                            if flag == 0:
+                                lex_aux._entries[chart.leaf(index)].append(token)
+        #pdb.set_trace()
+        #for index in range(chart.num_leaves()):        
+        #    for token in lex_aux.categories(chart.leaf(index)):
+        #        new_edge = CCGLeafEdge(index, token, chart.leaf(index))
+        #        chart.insert(new_edge, ())
+
+        # Select a span for the new edges
+        #for span in range(2,chart.num_leaves()+1):
+        #    for start in range(0,chart.num_leaves()-span+1):
+                # Try all possible pairs of edges that could generate
+                # an edge for that span
+        #        for part in range(1,span):
+        #            lstart = start
+        #            mid = start + part
+        #            rend = start + span
+
+        #            for left in chart.select(span=(lstart,mid)):
+        #                for right in chart.select(span=(mid,rend)):
+                            # Generate all possible combinations of the two edges
+        #                    for rule in self._rules:
+        #                        edges_added_by_rule = 0
+        #                        for newedge in rule.apply(chart,lex_aux,left,right):
+        #                            edges_added_by_rule += 1
+
+        #pdb.set_trace()                            
+        #lex._entries.append(Token(ident,cat,semantics))
+        self._lexicon = lex
+        return lex    
 
 class CCGChart(Chart):
     def __init__(self, tokens):
