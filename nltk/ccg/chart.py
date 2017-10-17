@@ -256,7 +256,7 @@ class CCGChartParser(ParserI):
             if lex.categories(chart.leaf(index))==[]:
                 for ident in (lex._entries):
                     for case in lex._entries[ident]:
-                        token = Token(chart.leaf(index),case.categ(),case.semantics())
+                        token = Token(chart.leaf(index),case.categ(),case.semantics(), 1.0)
                         if lex_aux._entries[chart.leaf(index)]== []:
                             lex_aux._entries[chart.leaf(index)].append(token)
                         else:

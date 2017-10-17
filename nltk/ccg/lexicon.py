@@ -57,7 +57,7 @@ class Token(object):
     * `weight` (float)
     * `semantics` (Expression)
     """
-    def __init__(self, token, categ, weight, semantics=None):
+    def __init__(self, token, categ, semantics=None, weight=1.0):
         self._token = token
         self._categ = categ
         self._weight = weight
@@ -290,7 +290,7 @@ def fromstring(lex_str, include_semantics=False):
 
                 # Word definition
                 # ie, which => (N\N)/(S/NP)
-                entries[ident].append(Token(ident, cat, weight, semantics))
+                entries[ident].append(Token(ident, cat, semantics, weight))
     return CCGLexicon(primitives[0], primitives, families, entries)
 
 
