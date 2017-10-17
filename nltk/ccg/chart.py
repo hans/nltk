@@ -232,7 +232,7 @@ class CCGChartParser(ParserI):
                             # Generate all possible combinations of the two edges
                             for rule in self._rules:
                                 edges_added_by_rule = 0
-                                for newedge in rule.apply(chart,lex_aux,left,right):
+                                for newedge in rule.apply(chart,lex,left,right):
                                     edges_added_by_rule += 1
 
         # Sort by weights derived from lexicon.
@@ -248,7 +248,7 @@ class CCGChartParser(ParserI):
         tokens = list(sentence.split())
         chart = CCGChart(list(tokens))
         lex = self._lexicon
-        #lex_aux = copy.deepcopy(lex) 
+        #lex_aux = copy.deepcopy(lex)
         lex_aux=lex
         # Initialize leaf edges.
         #pdb.set_trace()
@@ -260,14 +260,14 @@ class CCGChartParser(ParserI):
                         if lex_aux._entries[chart.leaf(index)]== []:
                             lex_aux._entries[chart.leaf(index)].append(token)
                         else:
-                            flag = 0     
+                            flag = 0
                             for other in lex_aux._entries[chart.leaf(index)]:
                                 if other.categ()== token.categ() and other.semantics()==token.semantics():
-                                    flag = 1 
+                                    flag = 1
                             if flag == 0:
                                 lex_aux._entries[chart.leaf(index)].append(token)
         #pdb.set_trace()
-        #for index in range(chart.num_leaves()):        
+        #for index in range(chart.num_leaves()):
         #    for token in lex_aux.categories(chart.leaf(index)):
         #        new_edge = CCGLeafEdge(index, token, chart.leaf(index))
         #        chart.insert(new_edge, ())
@@ -290,10 +290,10 @@ class CCGChartParser(ParserI):
         #                        for newedge in rule.apply(chart,lex_aux,left,right):
         #                            edges_added_by_rule += 1
 
-        #pdb.set_trace()                            
+        #pdb.set_trace()
         #lex._entries.append(Token(ident,cat,semantics))
         self._lexicon = lex
-        return lex    
+        return lex
 
 class CCGChart(Chart):
     def __init__(self, tokens):
