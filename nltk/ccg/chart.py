@@ -203,19 +203,10 @@ class CCGChartParser(ParserI):
     def lexicon(self):
         return self._lexicon
 
-   # Implements the CYK algorithm
-    def parse(self, tokens):
-        tokens = list(tokens)
-        chart = CCGChart(list(tokens))
-        lex = self._lexicon
-
-        # Initialize leaf edges.
-        pdb.set_trace()
-        for index in range(chart.num_leaves()):
-            for token in lex.categories(chart.leaf(index)):
-                new_edge = CCGLeafEdge(index, token, chart.leaf(index))
-                chart.insert(new_edge, ())
-
+    def _parse_inner(self, chart):
+        """
+        Run a chart parse on a chart with the edges already filled in.
+        """
 
         # Select a span for the new edges
         for span in range(2,chart.num_leaves()+1):
@@ -232,17 +223,37 @@ class CCGChartParser(ParserI):
                             # Generate all possible combinations of the two edges
                             for rule in self._rules:
                                 edges_added_by_rule = 0
-                                for newedge in rule.apply(chart,lex,left,right):
+                                for newedge in rule.apply(chart,self._lexicon,left,right):
                                     edges_added_by_rule += 1
 
         # Sort by weights derived from lexicon.
         def score_parse(parse):
             return sum(log(token.weight()) for _, token in parse.pos())
 
-        parses = chart.parses(lex.start())
-        ret = sorted(parses, key=score_parse)
+        parses = chart.parses(self._lexicon.start())
+        return sorted(parses, key=score_parse)
 
-        return ret
+   # Implements the CYK algorithm
+    def parse(self, tokens):
+        tokens = list(tokens)
+        lex = self._lexicon
+
+        # Collect potential leaf edges for each index. May be multiple per
+        # token.
+        edge_cands = [[CCGLeafEdge(i, l_token, token) for l_token in lex.categories(token)]
+                      for i, token in enumerate(tokens)]
+
+        # Run a parse for each of the product of possible leaf nodes,
+        # and merge results.
+        results = []
+        for edge_product in itertools.product(*edge_cands):
+            chart = CCGChart(list(tokens))
+            for leaf_edge in edge_product:
+                chart.insert(leaf_edge, ())
+
+            results.extend(self._parse_inner(chart))
+
+        return results
 
     def genlex(self,sentence):
         tokens = list(sentence.split())
