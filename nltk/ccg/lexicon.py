@@ -245,7 +245,7 @@ def augParseCategory(line, primitives, families, var=None):
 
     return (res, var)
 
-def fromstring(lex_str, include_semantics=False):
+def fromstring(lex_str, include_semantics=False, cls=CCGLexicon):
     """
     Convert string representation into a lexicon for CCGs.
     """
@@ -291,7 +291,7 @@ def fromstring(lex_str, include_semantics=False):
                 # Word definition
                 # ie, which => (N\N)/(S/NP)
                 entries[ident].append(Token(ident, cat, semantics, weight))
-    return CCGLexicon(primitives[0], primitives, families, entries)
+    return cls(primitives[0], primitives, families, entries)
 
 
 @deprecated('Use fromstring() instead.')

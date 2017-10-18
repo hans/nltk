@@ -226,15 +226,12 @@ class CCGChartParser(ParserI):
                                 for newedge in rule.apply(chart,self._lexicon,left,right):
                                     edges_added_by_rule += 1
 
-        # Sort by weights derived from lexicon.
-        def score_parse(parse):
-            return sum(log(token.weight()) for _, token in parse.pos())
 
         parses = chart.parses(self._lexicon.start())
-        return sorted(parses, key=score_parse)
+        return parses
 
    # Implements the CYK algorithm
-    def parse(self, tokens):
+    def parse(self, tokens, return_weights=False):
         tokens = list(tokens)
         lex = self._lexicon
 
@@ -253,7 +250,14 @@ class CCGChartParser(ParserI):
 
             results.extend(self._parse_inner(chart))
 
-        return results
+        # Sort by weights derived from lexicon.
+        def score_parse(parse):
+            return sum(log(max(token.weight(), 1e-6)) for _, token in parse.pos())
+
+        results = sorted(results, key=score_parse)
+        if not return_weights:
+            return results
+        return [(parse, score_parse(parse)) for parse in results]
 
     def genlex(self,sentence):
         tokens = list(sentence.split())
