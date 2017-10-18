@@ -51,6 +51,7 @@ from nltk.ccg.logic import *
 from nltk.sem.logic import *
 import pdb
 import copy
+import re
 
 # Based on the EdgeI class from NLTK.
 # A number of the properties of the EdgeI interface don't
@@ -203,10 +204,19 @@ class CCGChartParser(ParserI):
     def lexicon(self):
         return self._lexicon
 
-    def _parse_inner(self, chart):
-        """
-        Run a chart parse on a chart with the edges already filled in.
-        """
+   # Implements the CYK algorithm
+    def parse(self, tokens):
+        tokens = list(tokens)
+        chart = CCGChart(list(tokens))
+        lex = self._lexicon
+
+        # Initialize leaf edges.
+        #pdb.set_trace()
+        for index in range(chart.num_leaves()):
+            for token in lex.categories(chart.leaf(index)):
+                new_edge = CCGLeafEdge(index, token, chart.leaf(index))
+                chart.insert(new_edge, ())
+
 
         # Select a span for the new edges
         for span in range(2,chart.num_leaves()+1):
@@ -223,64 +233,120 @@ class CCGChartParser(ParserI):
                             # Generate all possible combinations of the two edges
                             for rule in self._rules:
                                 edges_added_by_rule = 0
-                                for newedge in rule.apply(chart,self._lexicon,left,right):
+                                for newedge in rule.apply(chart,lex,left,right):
                                     edges_added_by_rule += 1
-
-
-        parses = chart.parses(self._lexicon.start())
-        return parses
-
-   # Implements the CYK algorithm
-    def parse(self, tokens, return_weights=False):
-        tokens = list(tokens)
-        lex = self._lexicon
-
-        # Collect potential leaf edges for each index. May be multiple per
-        # token.
-        edge_cands = [[CCGLeafEdge(i, l_token, token) for l_token in lex.categories(token)]
-                      for i, token in enumerate(tokens)]
-
-        # Run a parse for each of the product of possible leaf nodes,
-        # and merge results.
-        results = []
-        for edge_product in itertools.product(*edge_cands):
-            chart = CCGChart(list(tokens))
-            for leaf_edge in edge_product:
-                chart.insert(leaf_edge, ())
-
-            results.extend(self._parse_inner(chart))
 
         # Sort by weights derived from lexicon.
         def score_parse(parse):
-            return sum(log(max(token.weight(), 1e-6)) for _, token in parse.pos())
+            return sum(log(token.weight()) for _, token in parse.pos())
 
-        results = sorted(results, key=score_parse)
-        if not return_weights:
-            return results
-        return [(parse, score_parse(parse)) for parse in results]
+        parses = chart.parses(lex.start())
+        ret = sorted(parses, key=score_parse)
 
-    def genlex(self,sentence):
+        return ret
+    
+    def lf_to_sem(self,lf):
+        diction = fromstring(r"""
+            :- NN, INP, ADJ, DET, IN
+            DET :: NN/NN
+            ADJ :: NN/NN
+            IN :: (NN\NN)/NN
+            ADV :: NN/ADJ
+            QS :: NN/NN
+
+            same => ADJ {\x.same_(x)}
+            same => IN {\x y.same_(x,y)}
+            material => NN {'material'}
+            color => NN {'color'}
+            shape => NN {'shape'}
+            size => NN {'size'}
+            as => IN {\x y.as(x,y)}
+            of => IN {\x y.of(x,y)}
+            relate => DET {\x.relate(x)}        
+            metal => ADJ {\x.filter_material(x,'metal')}
+            rubber => ADJ {\x.filter_material(x,'rubber')}
+            gray => ADJ {\x.filter_color(x,'gray')}
+            red => ADJ {\x.filter_color(x,'red')}
+            blue => ADJ {\x.filter_color(x,'blue')}
+            green => ADJ {\x.filter_color(x,'green')}
+            brown => ADJ {\x.filter_color(x,'brown')}
+            purple => ADJ {\x.filter_color(x,'purple')}
+            cyan => ADJ {\x.filter_color(x,'cyan')}
+            yellow => ADJ {\x.filter_color(x,'yellow')}
+            large => ADJ {\x.filter_size(x,'large')}
+            small => ADJ {\x.filter_size(x,'small')}
+            left => NN {'left'}
+            cube => NN {'cube'}
+            sphere => ADJ {\x.filter_shape(x,'sphere')}
+            sphere => NN {'sphere'}
+            cylinder => NN {'cylinder'}
+            query => QS {\x.query_(x)}
+            scene => NN {scene}
+            """, include_semantics=True)
+
+        #for i in split
+        #  diction[i] --> token
+        meanings=[]
+        lf = lf.replace("'","")
+        lf = lf.replace(" ","")
+        functions = re.split('\(|\)|,',lf)
+        for function in functions:
+            if function in diction._entries:
+                meanings.extend(diction.categories(function)) 
+        return meanings
+
+    def genlex(self,sentence,lf):
+        ## Gets a sentence and a logical form, updates the lexicon and gives it as ouput
+        #print('hola')
+        meanings = self.lf_to_sem(lf)
         tokens = list(sentence.split())
         chart = CCGChart(list(tokens))
         lex = self._lexicon
-        #lex_aux = copy.deepcopy(lex)
-        lex_aux=lex
+        lex_aux = copy.deepcopy(lex)
+        #lex_aux=lex
         # Initialize leaf edges.
         #pdb.set_trace()
         for index in range(chart.num_leaves()):
-            if lex.categories(chart.leaf(index))==[]:
-                for ident in (lex._entries):
-                    for case in lex._entries[ident]:
-                        token = Token(chart.leaf(index),case.categ(),case.semantics(), 1.0)
-                        if lex_aux._entries[chart.leaf(index)]== []:
+            if lex_aux.categories(chart.leaf(index))==[]:
+                for case in meanings:
+                    token = Token(chart.leaf(index),case.categ(),case.semantics(), 1.0)
+                    if lex_aux._entries[chart.leaf(index)]== []:
+                        lex_aux._entries[chart.leaf(index)].append(token)
+                    else:
+                        flag = 0
+                        for other in lex_aux._entries[chart.leaf(index)]:
+                            if other.categ()== token.categ() and other.semantics()==token.semantics():
+                                flag = 1
+                        if flag == 0:
                             lex_aux._entries[chart.leaf(index)].append(token)
-                        else:
-                            flag = 0
-                            for other in lex_aux._entries[chart.leaf(index)]:
-                                if other.categ()== token.categ() and other.semantics()==token.semantics():
-                                    flag = 1
-                            if flag == 0:
-                                lex_aux._entries[chart.leaf(index)].append(token)
+
+        #self._lexicon = lex
+        return lex_aux
+
+
+
+        #meanings = lf_to_sem
+        #tokens = list(sentence.split())
+        #chart = CCGChart(list(tokens))
+        #lex = self._lexicon
+        #lex_aux = copy.deepcopy(lex)
+        #lex_aux=lex
+        # Initialize leaf edges.
+        #pdb.set_trace()
+        #for index in range(chart.num_leaves()):
+        #    if lex.categories(chart.leaf(index))==[]:
+        #        for ident in (lex._entries):
+        #            for case in lex._entries[ident]:
+        #                token = Token(chart.leaf(index),case.categ(),case.semantics(), 1.0)
+        #                if lex_aux._entries[chart.leaf(index)]== []:
+        #                    lex_aux._entries[chart.leaf(index)].append(token)
+        #                else:
+        #                    flag = 0
+        #                    for other in lex_aux._entries[chart.leaf(index)]:
+        #                        if other.categ()== token.categ() and other.semantics()==token.semantics():
+        #                            flag = 1
+        #                    if flag == 0:
+        #                        lex_aux._entries[chart.leaf(index)].append(token)                                
         #pdb.set_trace()
         #for index in range(chart.num_leaves()):
         #    for token in lex_aux.categories(chart.leaf(index)):
@@ -307,8 +373,8 @@ class CCGChartParser(ParserI):
 
         #pdb.set_trace()
         #lex._entries.append(Token(ident,cat,semantics))
-        self._lexicon = lex
-        return lex
+        #self._lexicon = lex
+        #return lex
 
 class CCGChart(Chart):
     def __init__(self, tokens):
