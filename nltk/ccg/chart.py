@@ -204,19 +204,10 @@ class CCGChartParser(ParserI):
     def lexicon(self):
         return self._lexicon
 
-   # Implements the CYK algorithm
-    def parse(self, tokens):
-        tokens = list(tokens)
-        chart = CCGChart(list(tokens))
-        lex = self._lexicon
-
-        # Initialize leaf edges.
-        #pdb.set_trace()
-        for index in range(chart.num_leaves()):
-            for token in lex.categories(chart.leaf(index)):
-                new_edge = CCGLeafEdge(index, token, chart.leaf(index))
-                chart.insert(new_edge, ())
-
+    def _parse_inner(self, chart):
+        """
+        Run a chart parse on a chart with the edges already filled in.
+        """
 
         # Select a span for the new edges
         for span in range(2,chart.num_leaves()+1):
@@ -233,18 +224,40 @@ class CCGChartParser(ParserI):
                             # Generate all possible combinations of the two edges
                             for rule in self._rules:
                                 edges_added_by_rule = 0
-                                for newedge in rule.apply(chart,lex,left,right):
+                                for newedge in rule.apply(chart,self._lexicon,left,right):
                                     edges_added_by_rule += 1
+
+        parses = chart.parses(self._lexicon.start())
+        return parses
+
+    def parse(self, tokens, return_weights=False):
+        tokens = list(tokens)
+        lex = self._lexicon
+
+        # Collect potential leaf edges for each index. May be multiple per
+        # token.
+        edge_cands = [[CCGLeafEdge(i, l_token, token) for l_token in lex.categories(token)]
+                      for i, token in enumerate(tokens)]
+
+        # Run a parse for each of the product of possible leaf nodes,
+        # and merge results.
+        results = []
+        for edge_product in itertools.product(*edge_cands):
+            chart = CCGChart(list(tokens))
+            for leaf_edge in edge_product:
+                chart.insert(leaf_edge, ())
+
+            results.extend(self._parse_inner(chart))
 
         # Sort by weights derived from lexicon.
         def score_parse(parse):
-            return sum(log(token.weight()) for _, token in parse.pos())
+            return sum(log(max(token.weight(), 1e-6)) for _, token in parse.pos())
 
-        parses = chart.parses(lex.start())
-        ret = sorted(parses, key=score_parse)
+        results = sorted(results, key=score_parse)
+        if not return_weights:
+            return results
+        return [(parse, score_parse(parse)) for parse in results]
 
-        return ret
-    
     def lf_to_sem(self,lf):
         diction = fromstring(r"""
             :- NN, INP, ADJ, DET, IN
@@ -262,7 +275,7 @@ class CCGChartParser(ParserI):
             size => NN {'size'}
             as => IN {\x y.as(x,y)}
             of => IN {\x y.of(x,y)}
-            relate => DET {\x.relate(x)}        
+            relate => DET {\x.relate(x)}
             metal => ADJ {\x.filter_material(x,'metal')}
             rubber => ADJ {\x.filter_material(x,'rubber')}
             gray => ADJ {\x.filter_color(x,'gray')}
@@ -292,7 +305,7 @@ class CCGChartParser(ParserI):
         functions = re.split('\(|\)|,',lf)
         for function in functions:
             if function in diction._entries:
-                meanings.extend(diction.categories(function)) 
+                meanings.extend(diction.categories(function))
         return meanings
 
     def genlex(self,sentence,lf):
@@ -346,7 +359,7 @@ class CCGChartParser(ParserI):
         #                        if other.categ()== token.categ() and other.semantics()==token.semantics():
         #                            flag = 1
         #                    if flag == 0:
-        #                        lex_aux._entries[chart.leaf(index)].append(token)                                
+        #                        lex_aux._entries[chart.leaf(index)].append(token)
         #pdb.set_trace()
         #for index in range(chart.num_leaves()):
         #    for token in lex_aux.categories(chart.leaf(index)):
