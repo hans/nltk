@@ -76,7 +76,8 @@ class Token(object):
         semantics_str = ""
         if self._semantics is not None:
             semantics_str = " {" + str(self._semantics) + "}"
-        return "" + str(self._categ) + semantics_str
+        weight_str = " <%.3f>" % self._weight
+        return "" + str(self._categ) + semantics_str + weight_str
 
     def __cmp__(self, other):
         if not isinstance(other, Token): return -1
@@ -126,7 +127,9 @@ class CCGLexicon(object):
             string = string + ident + " => "
 
             first = True
-            for cat in self._entries[ident]:
+            cat_iter = sorted(self._entries[ident],
+                              key=lambda t: t.weight(), reverse=True)
+            for cat in cat_iter:
                 if not first:
                     string = string + " | "
                 else:
