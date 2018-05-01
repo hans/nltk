@@ -16,6 +16,7 @@ import re
 import operator
 from collections import defaultdict
 from functools import reduce, total_ordering
+import itertools
 
 from six import string_types
 
@@ -559,12 +560,13 @@ def read_logic(s, logic_parser=None, encoding=None):
 @total_ordering
 @python_2_unicode_compatible
 class Variable(object):
-    def __init__(self, name):
+    def __init__(self, name, type=None):
         """
         :param name: the name of the variable
         """
         assert isinstance(name, string_types), "%s is not a string" % name
         self.name = name
+        self.type = type
 
     def __eq__(self, other):
         return isinstance(other, Variable) and self.name == other.name
@@ -646,6 +648,10 @@ class ComplexType(Type):
         self.first = first
         self.second = second
 
+    @property
+    def parents(self):
+        return []
+
     def __eq__(self, other):
         return isinstance(other, ComplexType) and \
                self.first == other.first and \
@@ -669,6 +675,7 @@ class ComplexType(Type):
         elif isinstance(other, ComplexType):
             f = self.first.resolve(other.first)
             s = self.second.resolve(other.second)
+            # print(self.first, other.first, f)
             if f and s:
                 return ComplexType(f,s)
             else:
@@ -691,14 +698,15 @@ class ComplexType(Type):
             return '(%s -> %s)' % (self.first.str(), self.second.str())
 
 class BasicType(Type):
-    def __init__(self, parent=None):
+    def __init__(self, name=None, parent=None):
+        self.name = name
         self.parent = parent
 
     @property
     def parents(self):
         parents = []
         node = self
-        while node.parent is not None:
+        while isinstance(node, BasicType) and node.parent is not None:
             parents.append(node.parent)
             node = node.parent
 
@@ -713,7 +721,11 @@ class BasicType(Type):
     __hash__ = Type.__hash__
 
     def matches(self, other):
-        return other == ANY_TYPE or self == other or any(parent == other for parent in self.parents)
+        # print("\t\t", self, self.parents, other, other.parents)
+        ret = other == ANY_TYPE or self == other \
+                or any(my_parent == other_parent for my_parent, other_parent in itertools.product([self] + self.parents, [other] + other.parents))
+        # print("\t\t\t", ret)
+        return ret
 
     def resolve(self, other):
         if self.matches(other):
@@ -747,9 +759,6 @@ class EventType(BasicType):
 
 @python_2_unicode_compatible
 class AnyType(BasicType, ComplexType):
-    def __init__(self):
-        pass
-
     @property
     def first(self): return self
 
@@ -982,10 +991,15 @@ class Expression(SubstituteBindingsI):
             for key in signature:
                 val = signature[key]
                 varEx = VariableExpression(Variable(key))
+
                 if isinstance(val, Type):
-                    varEx.type = val
+                    destType = val
                 else:
-                    varEx.type = read_type(val)
+                    destType = read_type(val)
+
+                varEx.variable.type = destType
+                varEx.type = destType
+                # print(key, val, type(varEx), varEx, varEx.type)
                 sig[key].append(varEx)
 
         self._set_type(signature=sig)
@@ -1194,6 +1208,7 @@ class ApplicationExpression(Expression):
 
         self.argument._set_type(ANY_TYPE, signature)
         try:
+            # print("====", self.function, self.argument, self.argument.type)
             self.function._set_type(ComplexType(self.argument.type, other_type), signature)
         except TypeResolutionException:
             raise TypeException(
@@ -1355,6 +1370,7 @@ class AbstractVariableExpression(Expression):
             signature = defaultdict(list)
 
         resolution = other_type
+        # print("in var", self, resolution)
         for varEx in signature[self.variable.name]:
             resolution = varEx.type.resolve(resolution)
             if not resolution:
@@ -1405,12 +1421,14 @@ class IndividualVariableExpression(AbstractVariableExpression):
         if signature is None:
             signature = defaultdict(list)
 
-        if not other_type.matches(ENTITY_TYPE):
-            raise IllegalTypeException(self, other_type, ENTITY_TYPE)
+        if not other_type.matches(self.variable.type):
+            raise TypeResolutionException(self.variable.type, other_type)
+        # if not other_type.matches(ENTITY_TYPE):
+        #     raise IllegalTypeException(self, other_type, ENTITY_TYPE)
 
         signature[self.variable.name].append(self)
 
-    def _get_type(self): return ENTITY_TYPE
+    def _get_type(self): return self.variable.type
     type = property(_get_type, _set_type)
 
     def free(self):
@@ -1451,6 +1469,9 @@ class ConstantExpression(AbstractVariableExpression):
         if signature is None:
             signature = defaultdict(list)
 
+        # print(self, other_type)
+        if r"\a b.ltzero" in str(self):
+            raise RuntimeError()
         resolution = ANY_TYPE
         if other_type != ANY_TYPE:
             resolution = other_type
@@ -1458,7 +1479,9 @@ class ConstantExpression(AbstractVariableExpression):
                 resolution = resolution.resolve(self.type)
 
         for varEx in signature[self.variable.name]:
+            # print("\t", varEx, varEx.type, resolution)
             resolution = varEx.type.resolve(resolution)
+            # print("\t\t", resolution)
             if not resolution:
                 raise InconsistentTypeHierarchyException(self)
 
@@ -1582,7 +1605,7 @@ class VariableBinderExpression(Expression):
 class LambdaExpression(VariableBinderExpression):
     @property
     def type(self):
-        return ComplexType(self.term.findtype(self.variable),
+        return ComplexType(self.variable.type,
                            self.term.type)
 
     def _set_type(self, other_type=ANY_TYPE, signature=None):
