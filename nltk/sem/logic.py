@@ -631,9 +631,6 @@ def skolem_function(univ_scope=None):
 
 @python_2_unicode_compatible
 class Type(object):
-    def __repr__(self):
-        return "%s" % self
-
     def __hash__(self):
         return hash("%s" % self)
 
