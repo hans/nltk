@@ -691,6 +691,19 @@ class ComplexType(Type):
             return '(%s -> %s)' % (self.first.str(), self.second.str())
 
 class BasicType(Type):
+    def __init__(self, parent=None):
+        self.parent = parent
+
+    @property
+    def parents(self):
+        parents = []
+        node = self
+        while node.parent is not None:
+            parents.append(node.parent)
+            node = node.parent
+
+        return parents
+
     def __eq__(self, other):
         return isinstance(other, BasicType) and ("%s" % self) == ("%s" % other)
 
@@ -700,7 +713,7 @@ class BasicType(Type):
     __hash__ = Type.__hash__
 
     def matches(self, other):
-        return other == ANY_TYPE or self == other
+        return other == ANY_TYPE or self == other or any(parent == other for parent in self.parents)
 
     def resolve(self, other):
         if self.matches(other):
@@ -1438,10 +1451,8 @@ class ConstantExpression(AbstractVariableExpression):
         if signature is None:
             signature = defaultdict(list)
 
-        if other_type == ANY_TYPE:
-            #entity type by default, for individuals
-            resolution = ENTITY_TYPE
-        else:
+        resolution = ANY_TYPE
+        if other_type != ANY_TYPE:
             resolution = other_type
             if self.type != ENTITY_TYPE:
                 resolution = resolution.resolve(self.type)
