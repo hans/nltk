@@ -1435,13 +1435,15 @@ class IndividualVariableExpression(AbstractVariableExpression):
         if signature is None:
             signature = defaultdict(list)
 
-        if self.variable.type is None:
+        if self.variable.type is None or self.variable.type == ANY_TYPE:
             # Missing a variable type! Look elsewhere in the expression for
             # other uses of the same variable.
             try:
                 self.variable.type = signature[self.variable.name][0].variable.type
             except IndexError:
-                raise
+                if self.variable.type is None:
+                    # We're genuinely missing a type. Uh oh.
+                    raise RuntimeError("Missing declared variable type for %s" % self.variable)
 
         if not other_type.matches(self.variable.type):
             raise TypeResolutionException(self.variable.type, other_type)
