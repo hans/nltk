@@ -649,6 +649,16 @@ class ComplexType(Type):
         self.second = second
 
     @property
+    def flat(self):
+        expr = [self.first]
+        node = self.second
+        while isinstance(node, ComplexType):
+            expr.append(node.first)
+            node = node.second
+        expr.append(node)
+        return tuple(expr)
+
+    @property
     def parents(self):
         return []
 
@@ -701,6 +711,10 @@ class BasicType(Type):
     def __init__(self, name=None, parent=None):
         self.name = name
         self.parent = parent
+
+    @property
+    def flat(self):
+        return (self,)
 
     @property
     def parents(self):
