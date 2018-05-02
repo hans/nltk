@@ -1435,6 +1435,14 @@ class IndividualVariableExpression(AbstractVariableExpression):
         if signature is None:
             signature = defaultdict(list)
 
+        if self.variable.type is None:
+            # Missing a variable type! Look elsewhere in the expression for
+            # other uses of the same variable.
+            try:
+                self.variable.type = signature[self.variable.name][0].variable.type
+            except IndexError:
+                raise
+
         if not other_type.matches(self.variable.type):
             raise TypeResolutionException(self.variable.type, other_type)
         # if not other_type.matches(ENTITY_TYPE):
@@ -1628,6 +1636,14 @@ class LambdaExpression(VariableBinderExpression):
 
         if signature is None:
             signature = defaultdict(list)
+
+        if self.variable.type is None:
+            # Missing a variable type! Look elsewhere in the expression for
+            # other uses of the same variable.
+            try:
+                self.variable.type = signature[self.variable.name][0].variable.type
+            except IndexError:
+                raise
 
         self.term._set_type(other_type.second, signature)
         if not self.type.resolve(other_type):
