@@ -299,6 +299,8 @@ class PrimitiveCategory(AbstractCCGCategory):
         restrictions = "[%s]" % ",".join(unicode_repr(r) for r in self._restrs)
         return "%s%s" % (self._categ, restrictions)
 
+    __repr__ = __str__
+
 
 @python_2_unicode_compatible
 class FunctionalCategory(AbstractCCGCategory):
@@ -357,3 +359,5 @@ class FunctionalCategory(AbstractCCGCategory):
 
     def __str__(self):
         return "(%s%s%s)" % (self._res, self._dir, self._arg)
+
+    __repr__ = __str__
