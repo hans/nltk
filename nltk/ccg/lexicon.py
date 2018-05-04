@@ -84,6 +84,9 @@ class Token(object):
         return cmp((self._categ,self._weight,self._semantics),
                     other.categ(),other.weight(),other.semantics())
 
+    def __hash__(self):
+        return hash((self._token, self._categ, self._weight, self._semantics))
+
 @python_2_unicode_compatible
 class CCGLexicon(object):
     """
