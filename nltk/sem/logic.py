@@ -652,7 +652,7 @@ class ComplexType(Type):
     def flat(self):
         expr = [self.first]
         node = self.second
-        while isinstance(node, ComplexType):
+        while node.__class__ == ComplexType:
             expr.append(node.first)
             node = node.second
         expr.append(node)
