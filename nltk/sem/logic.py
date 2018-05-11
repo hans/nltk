@@ -1114,6 +1114,7 @@ class Expression(SubstituteBindingsI):
     def __str__(self):
         return self.str()
 
+    SPECIAL_VAR_RE = re.compile('^[?@]')
     def variables(self):
         """
         Return a set of all the variables for binding substitution.
@@ -1122,7 +1123,7 @@ class Expression(SubstituteBindingsI):
         :return: set of ``Variable`` objects
         """
         return self.free() | set(p for p in self.predicates()|self.constants()
-                                 if re.match('^[?@]', p.name))
+                                 if self.SPECIAL_VAR_RE.match(p.name))
 
     def free(self):
         """
