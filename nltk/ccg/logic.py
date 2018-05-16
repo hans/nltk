@@ -8,25 +8,27 @@
 Helper functions for CCG semantics computation
 """
 
+from copy import deepcopy
+
 from nltk.sem.logic import *
 
 def compute_type_raised_semantics(semantics):
-    core = semantics
+    core = deepcopy(semantics)
     parent = None
     while isinstance(core, LambdaExpression):
         parent = core
         core = core.term
-        
+
     var = Variable("F")
     while var in core.free():
         var = unique_variable(pattern=var)
     core = ApplicationExpression(FunctionVariableExpression(var), core)
-    
+
     if parent is not None:
         parent.term = core
     else:
         semantics = core
-    
+
     return LambdaExpression(var, semantics)
 
 def compute_function_semantics(function, argument):
@@ -41,6 +43,6 @@ def compute_substitution_semantics(function, argument):
     assert isinstance(argument, LambdaExpression), "`" + str(argument) + "` must be a lambda expression"
 
     new_argument = ApplicationExpression(argument, VariableExpression(function.variable)).simplify()
-    new_term = ApplicationExpression(function.term, new_argument).simplify() 
+    new_term = ApplicationExpression(function.term, new_argument).simplify()
 
     return LambdaExpression(function.variable, new_term)
